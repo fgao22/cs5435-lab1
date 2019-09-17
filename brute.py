@@ -11,6 +11,9 @@ SALTED_BREACH_PATH = "app/scripts/breaches/salted_breach.csv"
 def hash_sha256(x):
     return sha256(x.encode('utf-8')).hexdigest()
 
+def hash_pbkdf2(x, salt):
+    return pbkdf2_hmac('sha256', x.encode('utf-8'), bytes.fromhex(salt), 100000).hex()
+
 def load_breach(fp):
     with open(fp) as f:
         r = reader(f, delimiter=" ")
@@ -32,7 +35,13 @@ def hash_attack(hashed_creds):
             print(cred)
 
 def brute_force_attack(target_hash, target_salt):
-    pass
+    common_pws = load_common_passwords()
+    print("Sit back n relax. This gon take a while...")
+    for pw in common_pws:
+        if hash_pbkdf2(pw, target_salt) == target_hash:
+            print("Found password match: ", pw)
+            return pw
+
 
 def main():
     hashed_creds = load_breach(HASHED_BREACH_PATH)
@@ -40,6 +49,11 @@ def main():
     print("-" * 20)
     salted_creds = load_breach(SALTED_BREACH_PATH)
     brute_force_attack(salted_creds[0][1], salted_creds[0][2])
+
+    do_all = input("Do you want me to brute force all user credentials? [Y/N]")
+    if do_all.strip() in ("Y", "y", "Yes", "yes"):
+        for cred in salted_creds:
+            brute_force_attack(cred[1], cred[2])
 
 if __name__ == "__main__":
     main()
