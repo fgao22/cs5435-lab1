@@ -14,6 +14,8 @@ from app.models.session import (
     get_session_by_username,
     logged_in,
 )
+from app.models.breaches import get_breaches
+from app.util.hash import hash_sha256, hash_pbkdf2
 
 
 @get('/login')
@@ -27,11 +29,25 @@ def do_login(db):
     error = None
     user = get_user(db, username)
     print(user)
+
+    plaintext_breaches, hashed_breaches, salted_breaches = get_breaches(db, username)
+    breached = False 
+    for cred in plaintext_breaches:
+        if cred.password == password:
+            breached = True
+    for cred_h in hashed_breaches:
+        if cred_h.hashed_password == hash_sha256(password):
+            breached = True
+    for cred_s in salted_breaches:
+        if cred_s.salted_password == hash_pbkdf2(password, cred_s.salt):
+            breached = True
+
+
     if (request.forms.get("login")):
         if user is None:
             response.status = 401
             error = "{} is not registered.".format(username)
-        elif user.password != password:
+        elif user.password != hash_pbkdf2(password, user.salt):
             response.status = 401
             error = "Wrong password for {}.".format(username)
         else:
@@ -40,6 +56,9 @@ def do_login(db):
         if user is not None:
             response.status = 401
             error = "{} is already taken.".format(username)
+        elif breached:
+            response.status = 401
+            error = "This username and password pair is breached!"
         else:
             create_user(db, username, password)
     else:
